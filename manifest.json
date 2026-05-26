@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "WhaTicket CSV Parser",
+  "version": "1.0.0",
+  "description": "Descarga y analiza reportes CSV de WhaTicket instantáneamente",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "clipboardRead",
+    "clipboardWrite",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://whaticket.com/*",
+    "https://*.whaticket.com/*",
+    "https://accountant-services.co.uk/*"
+  ],
+  "action": {
+    "default_title": "WhaTicket CSV Parser",
+    "default_popup": "popup.html",
+    "default_icons": {
+      "16": "icons/icon-16.svg",
+      "48": "icons/icon-48.svg",
+      "128": "icons/icon-128.svg"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.svg",
+    "48": "icons/icon-48.svg",
+    "128": "icons/icon-128.svg"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": ["https://whaticket.com/*", "https://*.whaticket.com/*"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://whaticket.com/*", "https://*.whaticket.com/*"],
+      "js": ["content.js"],
+      "all_frames": false
+    }
+  ]
+}
