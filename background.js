@@ -1,28 +1,10 @@
-/**
- * Service Worker para la extensión
- * Maneja el ciclo de vida y eventos globales
- */
+console.log('✅ BACKGROUND.JS CARGADO');
 
-// Escuchar instalación
-chrome.runtime.onInstalled.addListener(() => {
-    console.log('✅ Extensión WhaTicket Parser instalada');
-    
-    // Establecer valores por defecto
-    chrome.storage.local.get(['serverUrl'], (result) => {
-        if (!result.serverUrl) {
-            chrome.storage.local.set({ 
-                serverUrl: 'http://localhost:5000'
-            });
-        }
-    });
+// LISTENER - ULTRA SIMPLE
+chrome.runtime.onMessage.addListener((req, sender, send) => {
+    console.log('📨 MENSAJE RECIBIDO:', req);
+    send({ pong: true, type: req.type });
+    return true;
 });
 
-// Escuchar mensajes desde content scripts
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === 'log') {
-        console.log('Content:', request.message);
-        sendResponse({ status: 'logged' });
-    }
-});
-
-console.log('✅ Service Worker de WhaTicket Parser cargado');
+console.log('✅ LISTENER REGISTRADO');

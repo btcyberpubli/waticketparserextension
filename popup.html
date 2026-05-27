@@ -4,361 +4,234 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WhaTicket CSV Parser</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
+        * {
+            box-sizing: border-box;
+        }
+        
         body {
-            width: 500px;
+            width: 450px;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             margin: 0;
             padding: 0;
+            background: linear-gradient(135deg, #FFB84D 0%, #FF8C42 100%);
         }
-        .container-popup {
-            padding: 20px;
-            background: #1a1a1a;
-            color: #fff;
+        
+        .container {
+            padding: 30px 25px;
+            background: linear-gradient(135deg, #FFF9F0 0%, #FFF5E6 100%);
+            color: #2C1810;
             min-height: 100vh;
         }
+        
         .header {
             text-align: center;
-            margin-bottom: 25px;
-            border-bottom: 2px solid #667eea;
-            padding-bottom: 15px;
+            margin-bottom: 35px;
         }
+        
         .header h2 {
-            font-weight: 700;
-            color: #667eea;
+            font-weight: 800;
+            color: #FF6B35;
             margin: 0;
-            font-size: 24px;
+            font-size: 28px;
         }
+        
         .header p {
-            color: #aaa;
-            margin: 5px 0 0 0;
-            font-size: 12px;
+            color: #8B5A3C;
+            margin: 8px 0 0 0;
+            font-size: 13px;
+            font-weight: 500;
         }
-        .input-section {
-            margin-bottom: 20px;
-        }
-        .input-section label {
-            font-weight: 600;
-            color: #ddd;
-            margin-bottom: 8px;
-            display: block;
-        }
-        textarea {
-            width: 100%;
-            min-height: 120px;
-            background: #2a2a2a !important;
-            color: #fff !important;
-            border: 1px solid #667eea !important;
-            border-radius: 6px;
-            padding: 10px;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-        }
-        textarea:focus {
-            outline: none !important;
-            border-color: #764ba2 !important;
-            box-shadow: 0 0 0 3px rgba(118, 75, 162, 0.1) !important;
-        }
-        .button-group {
+        
+        .buttons-container {
             display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 25px;
         }
-        button {
-            flex: 1;
-            padding: 12px;
+        
+        .main-btn {
+            padding: 18px;
             border: none;
-            border-radius: 6px;
-            font-weight: 600;
+            border-radius: 10px;
+            font-weight: 700;
             cursor: pointer;
             transition: all 0.3s ease;
-            font-size: 13px;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
-        .btn-parse {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        .btn-parse:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
-        }
-        .btn-parse:disabled {
+        
+        .main-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
-            transform: none;
         }
-        .btn-secondary {
-            background: #2a2a2a;
-            color: #aaa;
-            border: 1px solid #444;
+        
+        .btn-file {
+            background: linear-gradient(135deg, #FF8C42 0%, #FF6B35 100%);
+            color: white;
         }
-        .btn-secondary:hover {
-            background: #333;
-            color: #fff;
+        
+        .btn-file:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255, 107, 53, 0.3);
         }
-        .server-input {
+        
+        .btn-whaticket {
+            background: linear-gradient(135deg, #FFB84D 0%, #FF8C42 100%);
+            color: white;
+        }
+        
+        .btn-whaticket:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255, 180, 77, 0.3);
+        }
+        
+        .btn-process {
+            background: linear-gradient(135deg, #FF6B35 0%, #E85D2D 100%);
+            color: white;
+        }
+        
+        .btn-process:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255, 107, 53, 0.3);
+        }
+        
+        #csvFile {
+            display: none;
+        }
+        
+        .status-box {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            border-left: 5px solid #FF8C42;
+            margin-bottom: 20px;
+            display: none;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        .status-box.show {
+            display: block;
+        }
+        
+        .status-box.success {
+            border-left-color: #66BB6A;
+            background: #F1F8E9;
+            color: #2E7D32;
+        }
+        
+        .status-box.error {
+            border-left-color: #E8604B;
+            background: #FFE6E0;
+            color: #C1401B;
+        }
+        
+        .status-box.info {
+            border-left-color: #FF8C42;
+            background: #FFF5E6;
+            color: #8B5A3C;
+        }
+        
+        .file-name {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            border: 2px solid #FFCBA4;
+            margin-bottom: 15px;
+            font-size: 13px;
+            color: #2C1810;
+            font-weight: 600;
+            display: none;
+        }
+        
+        .file-name.show {
+            display: block;
+        }
+        
+        .results-display {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            border: 2px solid #FFCBA4;
+            display: none;
             margin-bottom: 15px;
         }
-        .server-input input {
-            width: 100%;
-            padding: 10px;
-            background: #2a2a2a !important;
-            color: #fff !important;
-            border: 1px solid #444 !important;
-            border-radius: 6px;
-            font-size: 12px;
+        
+        .results-display.show {
+            display: block;
         }
-        .server-input input:focus {
-            outline: none !important;
-            border-color: #667eea !important;
-        }
-        .loading {
-            display: none;
-            text-align: center;
-            margin: 20px 0;
-        }
-        .spinner {
-            border: 3px solid #444;
-            border-top: 3px solid #667eea;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .results {
-            display: none;
-            background: #2a2a2a;
-            padding: 15px;
-            border-radius: 6px;
-            border-left: 4px solid #667eea;
-        }
-        .results h3 {
-            color: #667eea;
-            margin-top: 0;
-            font-size: 16px;
-        }
-        .stat-row {
+        
+        .result-row {
             display: flex;
             justify-content: space-between;
             padding: 8px 0;
-            border-bottom: 1px solid #444;
+            border-bottom: 1px solid #FFCBA4;
             font-size: 13px;
         }
-        .stat-row:last-child {
+        
+        .result-row:last-child {
             border-bottom: none;
         }
-        .stat-label {
-            color: #aaa;
+        
+        .result-label {
+            color: #8B5A3C;
+            font-weight: 500;
         }
-        .stat-value {
-            color: #667eea;
-            font-weight: 600;
-        }
-        .error {
-            display: none;
-            background: #3a2a2a;
-            border-left: 4px solid #e74c3c;
-            padding: 12px;
-            border-radius: 6px;
-            color: #ff7675;
-            margin-bottom: 15px;
-            font-size: 13px;
-        }
-        .success {
-            display: none;
-            background: #2a3a2a;
-            border-left: 4px solid #27ae60;
-            padding: 12px;
-            border-radius: 6px;
-            color: #58d68d;
-            margin-bottom: 15px;
-            font-size: 13px;
-        }
-        .panel-item {
-            background: #333;
-            padding: 10px;
-            margin: 8px 0;
-            border-radius: 4px;
-            font-size: 12px;
-        }
-        .panel-item .panel-name {
-            color: #667eea;
-            font-weight: 600;
-        }
-        .panel-item .panel-stats {
-            color: #aaa;
-            margin-top: 4px;
-        }
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #444;
-        }
-        .tab {
-            padding: 8px 12px;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            color: #aaa;
-            font-size: 13px;
-            transition: all 0.3s;
-        }
-        .tab.active {
-            color: #667eea;
-            border-bottom-color: #667eea;
-        }
-        .tab-content {
-            display: none;
-        }
-        .tab-content.active {
-            display: block;
-        }
-        .copy-btn {
-            background: #667eea;
-            color: white;
-            padding: 6px 12px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 11px;
-            margin-top: 10px;
-        }
-        .copy-btn:hover {
-            background: #764ba2;
+        
+        .result-value {
+            color: #FF6B35;
+            font-weight: 700;
         }
     </style>
 </head>
 <body>
-    <div class="container-popup">
+    <div class="container">
         <div class="header">
-            <h2>📊 WhaTicket Parser</h2>
-            <p>Análisis de conversaciones en tiempo real</p>
+            <h2>🔥 WhaTicket Parser</h2>
+            <p>Procesamiento automático</p>
         </div>
 
-        <div class="error" id="errorDiv"></div>
-        <div class="success" id="successDiv"></div>
+        <div class="status-box" id="statusBox"></div>
+        <div class="file-name" id="fileName"></div>
 
-        <!-- Tabs de entrada -->
-        <div style="margin-bottom: 15px;">
-            <button id="tabManual" class="tab-button active" style="padding: 8px 15px; margin-right: 10px; border: none; border-bottom: 2px solid #667eea; background: none; cursor: pointer; font-weight: 600;">
-                📋 Manual
+        <div class="buttons-container">
+            <button class="main-btn btn-file" id="btnSelectFile">
+                📁 Seleccionar CSV
             </button>
-            <button id="tabWhaTicket" class="tab-button" style="padding: 8px 15px; margin-right: 10px; border: none; border-bottom: 2px solid transparent; background: none; cursor: pointer; font-weight: 600; color: #999;">
-                🔗 Desde WhaTicket
+            <button class="main-btn btn-whaticket" id="btnWhaTicket">
+                ⬇️ Descargar desde WhaTicket
+            </button>
+            <button class="main-btn btn-process" id="btnProcess" disabled>
+                📊 Procesar y Enviar
             </button>
         </div>
 
-        <!-- Tab Manual -->
-        <div id="manualTab" class="input-tab" style="display: block;">
-            <div class="input-section">
-                <label for="csvFile">📁 Selecciona archivo CSV</label>
-                <input type="file" id="csvFile" accept=".csv" style="display: block; margin-bottom: 15px; padding: 8px; border: 1px solid #ddd; border-radius: 5px; width: 100%;">
+        <div class="results-display" id="resultsDisplay">
+            <div class="result-row">
+                <span class="result-label">Fecha:</span>
+                <span class="result-value" id="resultDate">-</span>
             </div>
-
-            <div class="input-section">
-                <label for="csvData">📋 O pega datos CSV aquí</label>
-                <textarea id="csvData" placeholder="Pega los datos del CSV aquí...&#10;Formato esperado:&#10;createdAt,department,connection,conversationTags&#10;2026-05-25 10:00:00,Panel Royal,Campaign 1,tag1;tag2"></textarea>
+            <div class="result-row">
+                <span class="result-label">Conversaciones:</span>
+                <span class="result-value" id="resultTotal">-</span>
             </div>
-        </div>
-
-        <!-- Tab WhaTicket -->
-        <div id="whaticketTab" class="input-tab" style="display: none;">
-            <div class="input-section">
-                <p style="color: #999; font-size: 13px; margin-bottom: 15px; line-height: 1.5;">
-                    📋 <strong>Instrucciones:</strong><br>
-                    1. Abre WhaTicket en otra pestaña<br>
-                    2. Ve a <strong>Informes → Chats creados</strong><br>
-                    3. Haz clic en el botón azul abajo<br>
-                    4. Luego haz clic en "<strong>Exportar</strong>" en WhaTicket<br>
-                    5. La extensión capturará automáticamente el CSV
-                </p>
-                <button id="autoDownloadBtn" style="
-                    width: 100%; 
-                    padding: 12px; 
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                    color: white; 
-                    border: none; 
-                    border-radius: 5px; 
-                    font-weight: 600; 
-                    cursor: pointer;
-                    font-size: 14px;
-                ">
-                    ⬇️ Activar Captura
-                </button>
+            <div class="result-row">
+                <span class="result-label">Paneles:</span>
+                <span class="result-value" id="resultPanels">-</span>
             </div>
-        </div>
-
-        <div class="button-group">
-            <button class="btn-parse" id="parseBtn">Analizar</button>
-            <button class="btn-secondary" id="clearBtn">Limpiar</button>
-        </div>
-
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Procesando datos...</p>
-        </div>
-
-        <div class="results" id="results">
-            <div class="tabs">
-                <div class="tab active" data-tab="summary">📈 Resumen</div>
-                <div class="tab" data-tab="details">📋 Detalles</div>
-                <div class="tab" data-tab="json">💾 JSON</div>
+            <div class="result-row">
+                <span class="result-label">Cargas:</span>
+                <span class="result-value" id="resultCharges">-</span>
             </div>
-
-            <div class="tab-content active" id="tab-summary">
-                <div style="margin-bottom: 15px;">
-                    <div class="stat-row">
-                        <span class="stat-label">Fecha Procesada:</span>
-                        <span class="stat-value" id="statDate">-</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Total Conversaciones:</span>
-                        <span class="stat-value" id="statTotal">-</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Total Paneles:</span>
-                        <span class="stat-value" id="statPanels">-</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Total Campañas:</span>
-                        <span class="stat-value" id="statCampaigns">-</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Total Cargas:</span>
-                        <span class="stat-value" id="statCharges">-</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">% de Carga:</span>
-                        <span class="stat-value" id="statPercent">-</span>
-                    </div>
-                </div>
-                <h4 style="color: #667eea; font-size: 14px; margin-top: 15px;">Top 3 Paneles</h4>
-                <div id="topPanels"></div>
-            </div>
-
-            <div class="tab-content" id="tab-details">
-                <div id="panelsList"></div>
-            </div>
-
-            <div class="tab-content" id="tab-json">
-                <textarea id="jsonOutput" readonly style="height: 250px;"></textarea>
-                <button class="copy-btn" onclick="copyToClipboard()">📋 Copiar JSON</button>
-            </div>
-        </div>
-
-        <div style="display: flex; gap: 10px; margin-top: 15px;">
-            <button class="btn-parse" id="sendButton" onclick="enviarAlServidor()" style="display: none;">
-                📤 Enviar a Servidor
-            </button>
         </div>
     </div>
+
+    <input type="file" id="csvFile" accept=".csv">
 
     <script src="processor.js"></script>
     <script src="popup.js"></script>
