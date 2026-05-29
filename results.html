@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhaTicket Results - Parser Extension</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --success-color: #48bb78;
+            --danger-color: #f56565;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 0;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 20px;
+            border-bottom: 3px solid var(--primary-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h2 {
+            margin: 0;
+            color: var(--primary-color);
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .header-date {
+            color: #999;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            animation: slideUp 0.3s ease;
+        }
+
+        .stat-icon {
+            font-size: 28px;
+            margin-bottom: 10px;
+            opacity: 0.9;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            opacity: 0.85;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 800;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: white;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title i {
+            font-size: 20px;
+        }
+
+        .top-3-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+
+        .top-panel-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid var(--primary-color);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .rank-number {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            border-radius: 50%;
+            opacity: 0.9;
+        }
+
+        .panel-name {
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .panel-metrics {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 12px;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+        }
+
+        .metric-label {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .metric-value {
+            color: var(--primary-color);
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .panels-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .panel-detail-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-top: 4px solid var(--primary-color);
+        }
+
+        .panel-title-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .panel-percentage {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .campaigns-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .campaign-item {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid var(--primary-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .campaign-name {
+            font-weight: 600;
+            color: #333;
+            flex: 1;
+        }
+
+        .campaign-stats {
+            display: flex;
+            gap: 15px;
+            margin-left: 10px;
+        }
+
+        .campaign-stat {
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .campaign-stat-icon {
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        .empty-state {
+            background: white;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            color: #999;
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+
+        .empty-state p {
+            margin: 0;
+            font-size: 14px;
+        }
+
+        /* Scrollbar personalizado */
+        .content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .content::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .content::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+        }
+
+        .content::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Header -->
+        <div class="header">
+            <div>
+                <h2><i class="fas fa-chart-bar"></i> WhaTicket Results</h2>
+                <div class="header-date" id="dateDisplay"></div>
+            </div>
+            <div>
+                <button onclick="window.close()" style="background: #fee; border: none; color: #f56565; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: 600;">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <!-- Loading State -->
+            <div id="loadingState" style="text-align: center; padding: 40px; color: white;">
+                <div style="font-size: 48px; margin-bottom: 20px;">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+                <p>Cargando datos...</p>
+            </div>
+
+            <!-- Results Container (oculto inicialmente) -->
+            <div id="resultsContainer" style="display: none;">
+                <!-- Statistics -->
+                <div class="stats-container" id="statsContainer"></div>
+
+                <!-- Top 3 Panels Section -->
+                <div id="topPanelsSection" style="display: none;">
+                    <div class="section-title">
+                        <i class="fas fa-crown"></i>
+                        Top 3 Paneles
+                    </div>
+                    <div class="top-3-container" id="topPanelsContainer"></div>
+                </div>
+
+                <!-- All Panels Section -->
+                <div id="allPanelsSection" style="display: none;">
+                    <div class="section-title">
+                        <i class="fas fa-layer-group"></i>
+                        Todos los Paneles
+                    </div>
+                    <div class="panels-container" id="panelsContainer"></div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="empty-state" style="display: none;">
+                    <div style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;">
+                        <i class="fas fa-inbox"></i>
+                    </div>
+                    <p>No hay datos para mostrar</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../utils/parser.js"></script>
+    <script>
+        const resultsContainer = document.getElementById('resultsContainer');
+        const loadingState = document.getElementById('loadingState');
+        const dateDisplay = document.getElementById('dateDisplay');
+        const statsContainer = document.getElementById('statsContainer');
+        const topPanelsSection = document.getElementById('topPanelsSection');
+        const topPanelsContainer = document.getElementById('topPanelsContainer');
+        const allPanelsSection = document.getElementById('allPanelsSection');
+        const panelsContainer = document.getElementById('panelsContainer');
+        const emptyState = document.getElementById('emptyState');
+
+        let currentData = null;
+
+        // Recibir datos desde content.js via postMessage
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'DISPLAY_RESULTS') {
+                displayResults(event.data.csvData, event.data.processedResult);
+            }
+        });
+
+        // Recibir datos desde background.js via chrome API
+        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+            if (request.action === 'displayResults') {
+                displayResults(request.csvData, request.processedResult);
+                sendResponse({ received: true });
+            }
+            if (request.action === 'updateResults') {
+                console.log('📊 Actualizando resultados desde background.js');
+                displayResults(request.csvData, request.processedResult);
+                sendResponse({ updated: true });
+            }
+        });
+
+        // Cargar datos si fueron pasados en la URL (si se abre directamente)
+        window.addEventListener('load', () => {
+            // Solicitar datos guardados desde background.js
+            chrome.runtime.sendMessage({
+                action: 'getStoredResults'
+            }, (results) => {
+                if (results && results.processedResult) {
+                    displayResults(results.csvData, results.processedResult);
+                } else {
+                    // Esperar a que se envíen los datos
+                    setTimeout(() => {
+                        if (!currentData) {
+                            emptyState.style.display = 'block';
+                            loadingState.style.display = 'none';
+                        }
+                    }, 2000);
+                }
+            });
+        });
+
+        function displayResults(csvData, processedData) {
+            console.log('📊 Mostrando resultados:', processedData);
+            
+            if (!processedData || !processedData.success) {
+                emptyState.style.display = 'block';
+                loadingState.style.display = 'none';
+                return;
+            }
+
+            currentData = processedData;
+            const { data, statistics, today } = processedData;
+
+            // Mostrar fecha
+            const dateObj = new Date(today + 'T00:00:00');
+            const formattedDate = dateObj.toLocaleDateString('es-ES', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            dateDisplay.textContent = '📅 ' + formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
+
+            // Mostrar estadísticas
+            const statsHTML = `
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-comments"></i></div>
+                    <div class="stat-label">Conversaciones</div>
+                    <div class="stat-value">${statistics.total_conversaciones}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-layer-group"></i></div>
+                    <div class="stat-label">Paneles</div>
+                    <div class="stat-value">${statistics.total_paneles}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-bullhorn"></i></div>
+                    <div class="stat-label">Campañas</div>
+                    <div class="stat-value">${statistics.total_campañas}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-arrow-up"></i></div>
+                    <div class="stat-label">Cargas</div>
+                    <div class="stat-value">${statistics.total_cargas}</div>
+                </div>
+            `;
+            statsContainer.innerHTML = statsHTML;
+
+            // Mostrar Top 3
+            if (statistics.paneles_top_3.length > 0) {
+                const topPanelsHTML = statistics.paneles_top_3.map((panel, idx) => `
+                    <div class="top-panel-card">
+                        <div class="rank-number">${idx + 1}</div>
+                        <div class="panel-name">${panel.panel}</div>
+                        <div class="panel-metrics">
+                            <div class="metric">
+                                <span class="metric-label"><i class="fas fa-comments"></i> Mensajes</span>
+                                <span class="metric-value">${panel.mensajes}</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label"><i class="fas fa-arrow-up"></i> Cargas</span>
+                                <span class="metric-value">${panel.cargas}</span>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                topPanelsContainer.innerHTML = topPanelsHTML;
+                topPanelsSection.style.display = 'block';
+            }
+
+            // Mostrar todos los paneles
+            if (data && data.length > 0) {
+                const panelsHTML = data.map(panel => {
+                    const campaignsHTML = Object.entries(panel.campañas).map(([name, stats]) => `
+                        <div class="campaign-item">
+                            <span class="campaign-name">${name}</span>
+                            <div class="campaign-stats">
+                                <div class="campaign-stat">
+                                    <span class="campaign-stat-icon"><i class="fas fa-comments"></i></span>
+                                    <span>${stats.mensajes}</span>
+                                </div>
+                                <div class="campaign-stat">
+                                    <span class="campaign-stat-icon"><i class="fas fa-arrow-up"></i></span>
+                                    <span>${stats.cargas}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+
+                    return `
+                        <div class="panel-detail-card">
+                            <div class="panel-title-bar">
+                                <span class="panel-title">${panel.panel}</span>
+                                <span class="panel-percentage">${panel.porcentaje_carga} Carga</span>
+                            </div>
+                            <div class="campaigns-list">
+                                ${campaignsHTML}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                panelsContainer.innerHTML = panelsHTML;
+                allPanelsSection.style.display = 'block';
+            }
+
+            // Mostrar resultados, ocultar loading
+            loadingState.style.display = 'none';
+            resultsContainer.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

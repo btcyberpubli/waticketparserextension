@@ -1,22 +1,27 @@
 /**
- * CSV Processor - Lógica de procesamiento extraída de server.js
- * Funciona 100% en el navegador, sin dependencias de Node.js
+ * CSV Parser - Lógica de procesamiento 100% en el navegador
+ * Replica la lógica del server.js para procesar conversaciones
  */
 
-// Helper: Obtener fecha en zona horaria de Argentina (UTC-3)
+// Helper: Obtener fecha de HOY en zona horaria de Argentina (UTC-3)
+// El CSV ya viene con fechas en UTC-3, así que esta función
+// convierte la fecha actual (UTC) a UTC-3 para comparación
 function getArgentinaDate(dateObj = null) {
   let date;
   
   if (dateObj) {
+    // Si se pasa una fecha en UTC, restar 3 horas para Argentina
     const offsetMs = 3 * 60 * 60 * 1000;
     date = new Date(dateObj.getTime() - offsetMs);
   } else {
+    // Obtener HOY en Argentina (UTC-3)
+    // JavaScript da Date en UTC, restar 3 horas
     const utcNow = new Date();
     const offsetMs = 3 * 60 * 60 * 1000;
     date = new Date(utcNow.getTime() - offsetMs);
   }
   
-  return date.toISOString().split('T')[0];
+  return date.toISOString().split('T')[0]; // Retorna YYYY-MM-DD
 }
 
 // Helper: Parsear fecha del CSV (formato: "2026-05-11 11:43:11")
@@ -33,8 +38,36 @@ function parseCSVDate(dateStr) {
 }
 
 /**
+ * Convierte CSV string a array de objetos
+ */
+function parseCSVToArray(csvText) {
+  const lines = csvText.trim().split('\n');
+  if (lines.length < 2) {
+    return [];
+  }
+  
+  const headers = lines[0].split(',').map(h => h.trim());
+  const data = [];
+  
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue; // Saltar líneas vacías
+    
+    const obj = {};
+    const parts = line.split(',');
+    
+    for (let j = 0; j < headers.length; j++) {
+      obj[headers[j]] = parts[j] ? parts[j].trim() : '';
+    }
+    
+    data.push(obj);
+  }
+  
+  return data;
+}
+
+/**
  * Procesa los datos del CSV - SOLO datos de HOY
- * Retorna también información de todas las fechas encontradas
  */
 function processConversationData(rows) {
   const today = getArgentinaDate();
@@ -44,13 +77,11 @@ function processConversationData(rows) {
   let totalRowsWithToday = 0;
   let totalRowsProcessed = 0;
 
-  console.log('🔍 Procesando:', rows.length, 'filas');
-  console.log('📅 Fecha de HOY (Argentina):', today);
-
-  rows.forEach((row, rowIndex) => {
+  rows.forEach((row) => {
     totalRowsProcessed++;
     
-    const createdAtStr = row.createdAt || '';
+    // Intentar diferentes campos de fecha
+    const createdAtStr = row.firstSentMessageAt || row.createdAt || '';
     const dateKey = parseCSVDate(createdAtStr);
     
     if (!dateKey) {
@@ -59,6 +90,7 @@ function processConversationData(rows) {
 
     allDatesFound.add(dateKey);
     
+    // SOLO procesar datos de HOY
     if (dateKey !== today) {
       return;
     }
@@ -71,6 +103,7 @@ function processConversationData(rows) {
     
     const hasTag = tags && tags !== '' && tags !== 'nan';
 
+    // Inicializar panel para hoy si no existe
     if (!dataToday[department]) {
       dataToday[department] = {
         id: '',
@@ -83,8 +116,10 @@ function processConversationData(rows) {
       };
     }
 
+    // Incrementar mensajes
     dataToday[department].total_mensajes_hoy += 1;
 
+    // Inicializar campaña si no existe
     if (!dataToday[department].campañas[connection]) {
       dataToday[department].campañas[connection] = {
         mensajes: 0,
@@ -94,15 +129,15 @@ function processConversationData(rows) {
 
     dataToday[department].campañas[connection].mensajes += 1;
 
+    // Contar carga si tiene tags
     if (hasTag) {
       dataToday[department].cargas_hoy += 1;
       dataToday[department].campañas[connection].cargas += 1;
     }
   });
-
-  console.log('📊 Filas procesadas:', totalRowsProcessed);
-  console.log('📊 Filas con fecha de HOY:', totalRowsWithToday);
-  console.log('📅 Fechas encontradas en CSV:', Array.from(allDatesFound).sort().reverse().join(', '));
+  
+  // Convertir a array y calcular porcentajes
+  const panelsToday = Object.values(dataToday).map((panel) => {
     const total = panel.total_mensajes_hoy;
     const cargas = panel.cargas_hoy;
     const porcentaje = total > 0 ? ((cargas / total) * 100).toFixed(1) : '0.0';
@@ -118,8 +153,10 @@ function processConversationData(rows) {
     };
   });
 
+  // Ordenar paneles por total_mensajes_hoy descendente
   panelsToday.sort((a, b) => b.total_mensajes_hoy - a.total_mensajes_hoy);
 
+  // Asignar IDs secuenciales
   panelsToday.forEach((item, index) => {
     item.id = index.toString();
   });
@@ -135,7 +172,7 @@ function processConversationData(rows) {
 /**
  * Genera estadísticas para HOY
  */
-function generateStatistics(result, totalRows) {
+function generateStatistics(result) {
   const panelsToday = result.panels;
   const totalCampañas = new Set();
   let totalCargas = 0;
@@ -162,57 +199,29 @@ function generateStatistics(result, totalRows) {
 }
 
 /**
- * Función principal: Procesa CSV en formato array de objetos
+ * Función principal que procesa CSV y retorna resultado
  */
-function processCSV(data) {
+function processCSV(csvText) {
   try {
-    if (!data || !Array.isArray(data) || data.length === 0) {
-      console.error('❌ Datos inválidos o vacíos');
+    console.log('🔄 Procesando CSV en el navegador...');
+    
+    // Convertir CSV a array de objetos
+    const rows = parseCSVToArray(csvText);
+    console.log(`   Total filas: ${rows.length}`);
+    
+    if (rows.length === 0) {
       return {
         success: false,
-        error: 'CSV vacío o inválido'
-      };
-    }
-
-    // Validar columnas requeridas
-    const requiredColumns = ['createdAt', 'connection', 'conversationTags', 'department'];
-    const firstRow = data[0];
-    const actualColumns = Object.keys(firstRow);
-    const missingColumns = requiredColumns.filter(col => !(col in firstRow));
-
-    if (missingColumns.length > 0) {
-      console.error('❌ Columnas faltantes:', missingColumns);
-      return {
-        success: false,
-        error: `Columnas faltantes: ${missingColumns.join(', ')}`
+        error: 'El CSV no contiene datos válidos'
       };
     }
 
     // Procesar datos
-    const result = processConversationData(data);
-    const statistics = generateStatistics(result, data.length);
-
-    console.log('\n✅ RESULTADO DEL PROCESAMIENTO:');
-    console.log('   Paneles encontrados (HOY):', result.panels.length);
-    console.log('   Total conversaciones (HOY):', statistics.total_conversaciones);
-    console.log('   Total cargas (HOY):', statistics.total_cargas);
-    console.log('   Tiene datos de HOY:', result.hasDataToday);
+    const result = processConversationData(rows);
+    const statistics = generateStatistics(result);
     
-    if (!result.hasDataToday) {
-      console.warn('\n⚠️ NO HAY DATOS DE HOY');
-      console.log('   Fechas disponibles:', result.allDatesFound.join(', '));
-      return {
-        success: true,
-        data: [],
-        allDatesFound: result.allDatesFound,
-        hasDataToday: false,
-        today: result.today,
-        statistics: statistics,
-        total_rows: data.length,
-        warning: `No hay datos de hoy (${result.today}). Datos disponibles: ${result.allDatesFound.slice(0, 5).join(', ')}`
-      };
-    }
-
+    console.log(`✅ CSV procesado: ${result.panels.length} paneles, ${statistics.total_conversaciones} mensajes`);
+    
     return {
       success: true,
       data: result.panels,
@@ -220,7 +229,7 @@ function processCSV(data) {
       hasDataToday: result.hasDataToday,
       today: result.today,
       statistics: statistics,
-      total_rows: data.length
+      total_rows: rows.length
     };
   } catch (error) {
     console.error('❌ Error procesando CSV:', error);
@@ -229,10 +238,4 @@ function processCSV(data) {
       error: error.message
     };
   }
-}
-
-// ✅ EXPORTAR como global para que content.js pueda acceder
-if (typeof window !== 'undefined') {
-  window.processCSV = processCSV;
-  console.log('✅ processCSV exportada a window');
 }

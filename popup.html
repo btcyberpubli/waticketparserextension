@@ -192,41 +192,44 @@
 <body>
     <div class="container">
         <div class="header">
-            <h2>🔥 WhaTicket Parser</h2>
-            <p>Procesamiento automático</p>
+            <h2>🔥 WhaTicket Monitor</h2>
+            <p>Seguimiento de métricas en vivo</p>
         </div>
 
         <div class="status-box" id="statusBox"></div>
-        <div class="file-name" id="fileName"></div>
 
         <div class="buttons-container">
-            <button class="main-btn btn-file" id="btnSelectFile">
-                📁 Seleccionar CSV
+            <button class="main-btn btn-whaticket" id="btnToggle" style="margin-bottom: 10px;">
+                ▶️ Iniciar Monitoreo
             </button>
-            <button class="main-btn btn-whaticket" id="btnWhaTicket">
-                ⬇️ Descargar desde WhaTicket
-            </button>
-            <button class="main-btn btn-process" id="btnProcess" disabled>
-                📊 Procesar y Enviar
-            </button>
+            <div style="background: white; padding: 10px; border-radius: 6px; border: 2px solid #FFCBA4; font-size: 12px; text-align: center;">
+                <div style="color: #8B5A3C; margin-bottom: 5px;">⏱️ Última actualización:</div>
+                <div style="color: #FF6B35; font-weight: bold; font-size: 14px;" id="lastUpdate">Nunca</div>
+            </div>
         </div>
 
         <div class="results-display" id="resultsDisplay">
             <div class="result-row">
-                <span class="result-label">Fecha:</span>
+                <span class="result-label">📅 Fecha:</span>
                 <span class="result-value" id="resultDate">-</span>
             </div>
             <div class="result-row">
-                <span class="result-label">Conversaciones:</span>
+                <span class="result-label">💬 Conversaciones:</span>
                 <span class="result-value" id="resultTotal">-</span>
             </div>
             <div class="result-row">
-                <span class="result-label">Paneles:</span>
+                <span class="result-label">📊 Paneles:</span>
                 <span class="result-value" id="resultPanels">-</span>
             </div>
             <div class="result-row">
-                <span class="result-label">Cargas:</span>
+                <span class="result-label">📦 Cargas:</span>
                 <span class="result-value" id="resultCharges">-</span>
+            </div>
+            
+            <hr style="border: none; border-top: 2px solid #FFCBA4; margin: 15px 0;">
+            
+            <div id="panelsTable" style="max-height: 300px; overflow-y: auto; font-size: 12px;">
+                <div style="text-align: center; color: #999; padding: 10px;">Cargando paneles...</div>
             </div>
         </div>
     </div>

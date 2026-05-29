@@ -1,121 +1,70 @@
-/**
- * Content Script - Ciclo completo: Captura → Procesa → Envía
- * El script inyectado captura el CSV, el content script lo procesa
- */
+console.log('✅ Content script cargado');
 
-console.log('✅ Content script listo');
+// Verificar que los módulos están cargados
+console.log('🔍 Verificando módulos disponibles:');
+console.log('   - csvToJson:', typeof csvToJson === 'function' ? '✅' : '❌');
+console.log('   - procesarDatosHoy:', typeof procesarDatosHoy === 'function' ? '✅' : '❌');
 
-// ============================================
-// INYECTAR SCRIPT EN CONTEXTO DE PÁGINA (world: MAIN)
-// ============================================
-function injectInterceptor() {
-    return new Promise((resolve) => {
+// 1. Inyectar el script 'injected.js' de manera segura en la página
+const script = document.createElement('script');
+script.src = chrome.runtime.getURL('injected.js');
+script.onload = function() {
+    console.log('✅ injected.js inyectado correctamente');
+    this.remove();
+};
+script.onerror = function() {
+    console.error('❌ Error inyectando injected.js');
+};
+(document.head || document.documentElement).appendChild(script);
+
+// 2. Escuchar el evento personalizado cuando el interceptor capture el CSV
+window.addEventListener('WHATICKET_CSV_CAPTURED', function(event) {
+    const csvData = event.detail?.csv;
+    const source = event.detail?.source;
+    const size = event.detail?.size;
+
+    if (csvData) {
+        console.log('\n✅ EVENTO RECIBIDO DESDE INJECTED.JS:');
+        console.log('   Tipo: WHATICKET_CSV_CAPTURED');
+        console.log('   Tamaño:', size, 'chars');
+        console.log('   Fuente:', source);
+        console.log('   Primeros 150 chars:', csvData.substring(0, 150));
+        
+        // Guardar en variable global para debug
+        window.__receivedCSV = csvData;
+        console.log('   ✅ Guardado en window.__receivedCSV para debug\n');
+        
+        // Enviar el CSV capturado a background.js para almacenarlo
+        console.log('📤 Enviando CSV a background.js...');
         try {
-            const script = document.createElement('script');
-            script.type = 'text/javascript';
-            script.id = 'whaticket-csv-interceptor';
-            
-            script.textContent = `
-(function() {
-    console.log('🔧 [INJECTED] Instalando interceptor de descargas...');
-    
-    // INTERCEPTAR URL.createObjectURL para Blobs CSV
-    const originalCreateObjectURL = URL.createObjectURL;
-    URL.createObjectURL = function(blob) {
-        if (blob instanceof Blob) {
-            console.log('📦 [INJECTED] Blob detectado:', blob.type, blob.size, 'bytes');
-            
-            if (blob.type.includes('csv') || 
-                blob.type.includes('text') ||
-                blob.type === 'application/octet-stream') {
-                
-                try {
-                    blob.text().then(text => {
-                        if (text && text.length > 100 && (text.includes(',') && text.includes('createdAt'))) {
-                            console.log('🎯 [INJECTED] CSV capturado desde Blob');
-                            console.log('✅ [INJECTED] Tamaño:', text.length, 'bytes');
-                            window.__whaticketCSV = text;
-                            window.__csvReady = true;
-                            window.__csvSource = 'blob';
-                        }
-                    }).catch(e => console.error('❌ [INJECTED] Error leyendo blob:', e));
-                } catch (e) {
-                    console.error('❌ [INJECTED] Error capturando CSV:', e);
+            chrome.runtime.sendMessage({
+                action: "storeCSV",
+                csv: csvData,
+                source: source,
+                size: size
+            }, function(response) {
+                if (response?.success) {
+                    console.log('✅ CSV almacenado en background.js:', response);
+                } else {
+                    console.error('❌ Error almacenando CSV:', response);
                 }
-            }
+            });
+        } catch (error) {
+            console.error('⚠️ Error enviando a background.js:', error.message);
         }
-        return originalCreateObjectURL.call(this, blob);
-    };
-    
-    console.log('✅ [INJECTED] Interceptor de Blob/ObjectURL instalado');
-    
-    // INTERCEPTAR FETCH (backup)
-    const originalFetch = window.fetch;
-    window.fetch = function(...args) {
-        return originalFetch.apply(this, args).then(async response => {
-            const contentType = response.headers.get('content-type') || '';
-            const contentDisposition = response.headers.get('content-disposition') || '';
-            
-            if (contentType.includes('csv') || contentDisposition.includes('.csv')) {
-                try {
-                    console.log('🎯 [INJECTED] CSV en fetch');
-                    const text = await response.clone().text();
-                    if (text && text.length > 100) {
-                        console.log('✅ [INJECTED] CSV capturado fetch:', text.length, 'bytes');
-                        window.__whaticketCSV = text;
-                        window.__csvReady = true;
-                        window.__csvSource = 'fetch';
-                    }
-                } catch (e) {}
-            }
-            return response;
-        });
-    };
-    
-    // INTERCEPTAR XHR (backup)
-    const origOpen = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function(m, u, ...r) {
-        this._xhrUrl = u;
-        return origOpen.apply(this, [m, u, ...r]);
-    };
-    
-    const origSend = XMLHttpRequest.prototype.send;
-    XMLHttpRequest.prototype.send = function(...a) {
-        this.addEventListener('load', function() {
-            const ct = this.getResponseHeader('content-type') || '';
-            if ((ct.includes('csv') || this._xhrUrl?.includes('export')) && 
-                this.responseText?.length > 100 && this.responseText.includes(',')) {
-                console.log('✅ [INJECTED] CSV capturado XHR:', this.responseText.length, 'bytes');
-                window.__whaticketCSV = this.responseText;
-                window.__csvReady = true;
-                window.__csvSource = 'xhr';
-            }
-        });
-        return origSend.apply(this, a);
-    };
-    
-    console.log('🚀 [INJECTED] Interceptores activos');
-})();
-`;
-            
-            document.documentElement.appendChild(script);
-            console.log('✅ Script inyectado en la página');
-            
-            script.onload = script.onerror = resolve;
-            setTimeout(resolve, 100);
-        } catch (e) {
-            console.error('❌ Error inyectando script:', e);
-            resolve();
-        }
-    });
-}
+    }
+});
 
-// Inyectar al cargar
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', injectInterceptor);
-} else {
-    injectInterceptor();
-}
+// Escuchar mensajes desde results.html
+window.addEventListener('message', function(event) {
+    if (event.data.type === 'DISPLAY_RESULTS') {
+        console.log('📊 Datos recibidos en results.html');
+    }
+});
+
+console.log('📍 Listeners configurados - Esperando descargas de CSV...\n');
+
+console.log('✅ Content script LISTO\n');
 
 // ============================================
 // ESCUCHAR MENSAJES DEL POPUP
@@ -125,14 +74,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     
     if (request.action === 'downloadCSV') {
         iniciarDescargaCSV(sendResponse);
-        return true;
+        return true; // Indica que usaremos sendResponse de forma asincrónica
     }
 });
 
 // ============================================
 // FUNCIONES DE DESCARGA
 // ============================================
-
 function encontrarBotonExportar() {
     const todos = document.querySelectorAll('*');
     const botones = [];
@@ -212,18 +160,57 @@ function csvToJson(csvText) {
         return [];
     }
     
-    const headers = lines[0].split(',').map(h => h.trim());
-    const data = [];
-    
-    for (let i = 1; i < lines.length; i++) {
-        const obj = {};
-        const currentLine = lines[i].split(',');
+    // Parser robusto que respeta comillas
+    function parseCsvLine(line) {
+        const fields = [];
+        let current = '';
+        let inQuotes = false;
         
-        for (let j = 0; j < headers.length; j++) {
-            obj[headers[j]] = currentLine[j] ? currentLine[j].trim() : '';
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            const nextChar = line[i + 1];
+            
+            if (char === '"') {
+                if (inQuotes && nextChar === '"') {
+                    // Escapado: ""
+                    current += '"';
+                    i++;
+                } else {
+                    // Toggle quote state
+                    inQuotes = !inQuotes;
+                }
+            } else if (char === ',' && !inQuotes) {
+                // Fin de campo
+                fields.push(current.trim());
+                current = '';
+            } else {
+                current += char;
+            }
         }
         
-        if (obj.createdAt) data.push(obj);
+        // Último campo
+        if (current || fields.length > 0) {
+            fields.push(current.trim());
+        }
+        
+        return fields;
+    }
+    
+    const headerFields = parseCsvLine(lines[0]);
+    const headers = headerFields.map(h => h.replace(/^"|"$/g, ''));
+    
+    const data = [];
+    for (let i = 1; i < lines.length; i++) {
+        const fields = parseCsvLine(lines[i]);
+        const obj = {};
+        
+        for (let j = 0; j < headers.length; j++) {
+            const value = fields[j] ? fields[j].replace(/^"|"$/g, '') : '';
+            obj[headers[j]] = value;
+        }
+        
+        // Incluir TODAS las filas (que tengan al menos un campo)
+        if (Object.values(obj).some(v => v !== '')) data.push(obj);
     }
     
     console.log('📊 CSV convertido a JSON:', data.length, 'registros');
@@ -231,202 +218,350 @@ function csvToJson(csvText) {
 }
 
 // ============================================
-// ENVIAR A SERVIDOR
+// PROCESAR CSV
 // ============================================
-async function enviarAlServidor(panelsProcessados) {
-    console.log('\n🚀 ENVIANDO A SERVIDOR...');
-    console.log('📦 Paneles a enviar:', panelsProcessados.length);
+function csvToJson(csvText) {
+    const lines = csvText.trim().split('\n');
+    if (lines.length < 2) {
+        console.error('❌ CSV sin datos');
+        return [];
+    }
     
-    try {
-        console.log('\n📤 POST REQUEST:');
-        console.log('   URL: https://accountant-services.co.uk/api/paneles');
-        console.log('   Body:', JSON.stringify(panelsProcessados, null, 2));
+    // Parser robusto que respeta comillas
+    function parseCsvLine(line) {
+        const fields = [];
+        let current = '';
+        let inQuotes = false;
         
-        const response = await fetch('https://accountant-services.co.uk/api/paneles', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(panelsProcessados)
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            const nextChar = line[i + 1];
+            
+            if (char === '"') {
+                if (inQuotes && nextChar === '"') {
+                    // Escapado: ""
+                    current += '"';
+                    i++;
+                } else {
+                    // Toggle quote state
+                    inQuotes = !inQuotes;
+                }
+            } else if (char === ',' && !inQuotes) {
+                // Fin de campo
+                fields.push(current.trim());
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        
+        // Último campo
+        if (current || fields.length > 0) {
+            fields.push(current.trim());
+        }
+        
+        return fields;
+    }
+    
+    const headerFields = parseCsvLine(lines[0]);
+    const headers = headerFields.map(h => h.replace(/^"|"$/g, ''));
+    
+    const data = [];
+    for (let i = 1; i < lines.length; i++) {
+        const fields = parseCsvLine(lines[i]);
+        const obj = {};
+        
+        for (let j = 0; j < headers.length; j++) {
+            const value = fields[j] ? fields[j].replace(/^"|"$/g, '') : '';
+            obj[headers[j]] = value;
+        }
+        
+        if (Object.values(obj).some(v => v !== '')) data.push(obj);
+    }
+    
+    console.log('📊 CSV convertido a JSON:', data.length, 'registros');
+    return data;
+}
+
+// ============================================
+// PROCESAR DATOS DE HOY
+// ============================================
+function procesarDatosHoy(rows) {
+    try {
+        // Obtener HOY en zona horaria Argentina (UTC-3)
+        const utcNow = new Date();
+        const offsetMs = 3 * 60 * 60 * 1000;
+        const today = new Date(utcNow.getTime() - offsetMs).toISOString().split('T')[0];
+        
+        console.log('📅 Procesando datos para HOY:', today);
+        console.log('📊 Total filas en CSV:', rows.length);
+        
+        const dataToday = {}; // Agrupar por department
+        const allDatesFound = new Set();
+        let totalRowsWithToday = 0;
+        
+        // ============ PROCESAR CADA FILA ============
+        rows.forEach((row, idx) => {
+            // IMPORTANTE: Usar firstSentMessageAt (no createdAt)
+            const dateStr = row.firstSentMessageAt || row.createdAt || '';
+            if (!dateStr) return;
+            
+            // Extraer fecha en formato YYYY-MM-DD
+            const datePart = dateStr.split(' ')[0];
+            if (!datePart || !/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return;
+            
+            allDatesFound.add(datePart);
+            
+            // SOLO procesar datos de HOY
+            if (datePart !== today) return;
+            
+            totalRowsWithToday++;
+            
+            // Extraer datos principales
+            const department = (row.department || 'SIN_PANEL').trim();
+            const connection = (row.connection || 'SIN_CAMPAÑA').trim();
+            const tags = (row.conversationTags || '').trim();
+            
+            // Determinar si tiene "carga" (tiene tags y no es "nan")
+            const hasTag = tags && tags !== '' && tags !== 'nan';
+            
+            // Log de primeras 5 filas
+            if (totalRowsWithToday <= 5) {
+                console.log(`   Row ${totalRowsWithToday}: dept="${department}" conn="${connection}" tags="${tags}" hasTag=${hasTag}`);
+            }
+            
+            // ============ INICIALIZAR PANEL ============
+            if (!dataToday[department]) {
+                dataToday[department] = {
+                    id: '',
+                    panel: department,
+                    total_mensajes_hoy: 0,
+                    cargas_hoy: 0,
+                    porcentaje_carga: '0.0%',
+                    campañas: {},
+                    detalle_por_origen: ['whaticket']
+                };
+            }
+            
+            // ============ CONTAR MENSAJES ============
+            dataToday[department].total_mensajes_hoy += 1;
+            
+            // ============ INICIALIZAR CAMPAÑA ============
+            if (!dataToday[department].campañas[connection]) {
+                dataToday[department].campañas[connection] = {
+                    mensajes: 0,
+                    cargas: 0
+                };
+            }
+            
+            // ============ CONTAR MENSAJE EN CAMPAÑA ============
+            dataToday[department].campañas[connection].mensajes += 1;
+            
+            // ============ CONTAR CARGAS SI TIENE TAGS ============
+            if (hasTag) {
+                dataToday[department].cargas_hoy += 1;
+                dataToday[department].campañas[connection].cargas += 1;
+            }
         });
         
-        console.log('✅ RESPUESTA DEL SERVIDOR:');
-        console.log('   Status:', response.status);
+        console.log(`\n🔍 Debug processConversationData:`);
+        console.log(`   Total rows en CSV: ${rows.length}`);
+        console.log(`   Rows con fecha HOY (${today}): ${totalRowsWithToday}`);
+        console.log(`   Paneles procesados: ${Object.keys(dataToday).length}`);
         
-        const apiResult = await response.json();
-        console.log('   Body:', apiResult);
+        // ============ CONVERTIR A ARRAY Y CALCULAR PORCENTAJES ============
+        const panelsToday = Object.values(dataToday).map((panel, idx) => {
+            const total = panel.total_mensajes_hoy;
+            const cargas = panel.cargas_hoy;
+            const porcentaje = total > 0 ? ((cargas / total) * 100).toFixed(1) : '0.0';
+            
+            console.log(`   [${panel.panel}] Total: ${total}, Cargas: ${cargas}, %: ${porcentaje}%`);
+            
+            return {
+                id: '',
+                panel: panel.panel,
+                total_mensajes_hoy: total,
+                cargas_hoy: cargas,
+                porcentaje_carga: `${porcentaje}%`,
+                campañas: panel.campañas,
+                detalle_por_origen: panel.detalle_por_origen
+            };
+        });
         
-        if (apiResult.success) {
-            console.log(`\n✅ SUCCESS: ${apiResult.paneles_guardados} paneles guardados`);
-            return { success: true, result: apiResult };
-        } else {
-            console.error(`❌ ERROR: ${apiResult.error}`);
-            return { success: false, error: apiResult.error };
-        }
+        // ============ ORDENAR POR TOTAL DESCENDENTE ============
+        panelsToday.sort((a, b) => b.total_mensajes_hoy - a.total_mensajes_hoy);
+        
+        // ============ ASIGNAR IDs SECUENCIALES ============
+        panelsToday.forEach((item, idx) => {
+            item.id = idx.toString();
+        });
+        
+        // ============ GENERAR ESTADÍSTICAS ============
+        const totalCampañas = new Set();
+        let totalCargas = 0;
+        let totalMensajes = 0;
+        
+        panelsToday.forEach(panel => {
+            totalMensajes += panel.total_mensajes_hoy;
+            totalCargas += panel.cargas_hoy;
+            Object.keys(panel.campañas).forEach(camp => totalCampañas.add(camp));
+        });
+        
+        const statistics = {
+            total_conversaciones: totalMensajes,
+            total_paneles: panelsToday.length,
+            total_campañas: totalCampañas.size,
+            total_cargas: totalCargas,
+            paneles_top_3: panelsToday.slice(0, 3).map(item => ({
+                panel: item.panel,
+                mensajes: item.total_mensajes_hoy,
+                cargas: item.cargas_hoy
+            })),
+            fecha_actual: today
+        };
+        
+        console.log(`\n✅ Respuesta final:`);
+        console.log(`   Total filas CSV: ${rows.length}`);
+        console.log(`   Paneles encontrados: ${panelsToday.length}`);
+        console.log(`   Estadísticas:`, {
+            total_conversaciones: statistics.total_conversaciones,
+            total_cargas: statistics.total_cargas,
+            porcentaje_general: panelsToday.length > 0 ? ((totalCargas / totalMensajes) * 100).toFixed(1) + '%' : 'N/A'
+        });
+        
+        return {
+            success: true,
+            data: panelsToday,
+            allDatesFound: Array.from(allDatesFound).sort().reverse(),
+            hasDataToday: panelsToday.length > 0,
+            today: today,
+            statistics: statistics,
+            total_rows: rows.length
+        };
+        
     } catch (error) {
-        console.error('❌ Error enviando:', error);
-        return { success: false, error: error.message };
+        console.error('❌ Error en procesarDatosHoy:', error);
+        return {
+            success: false,
+            error: error.message
+        };
     }
 }
 
 // ============================================
 // FUNCIÓN PRINCIPAL - CICLO COMPLETO
 // ============================================
-function iniciarDescargaCSV(sendResponse) {
+async function iniciarDescargaCSV(sendResponse) {
     console.log('\n🚀 ===== INICIANDO CICLO COMPLETO =====\n');
-    console.log('📊 Estrategia: Downloads API + Interceptores');
+    
+    let timeoutId = null;
+    let csvRecibido = null;
     
     try {
-        // Paso 1: Abrir modal
+        console.log('✅ Interceptor de blobs inyectado y activo\n');
+        
+        // Setup: Escuchar CSV que llegará desde injected.js via CustomEvent
+        const csvListener = (event) => {
+            csvRecibido = event.detail;
+            console.log('\n✅✅✅ CSV CAPTURADO EXITOSAMENTE');
+            console.log('   Fuente:', csvRecibido.source);
+            console.log('   Tamaño:', csvRecibido.size, 'chars');
+            
+            clearTimeout(timeoutId);
+            procesarYEnviar(csvRecibido);
+        };
+        
+        window.addEventListener('WHATICKET_CSV_CAPTURED', csvListener);
+        
+        // Setup: Timeout
+        timeoutId = setTimeout(() => {
+            window.removeEventListener('WHATICKET_CSV_CAPTURED', csvListener);
+            
+            console.error('\n❌ TIMEOUT (60 segundos)');
+            console.log('\n📝 DIAGNÓSTICO:');
+            console.log('   ✅ Interceptor está inyectado');
+            console.log('   ❓ Pero NO se capturó ningún blob');
+            console.log('   ℹ️  Posibles causas:');
+            console.log('      • El CSV no se descargó');
+            console.log('      • WhaTicket no usa blob URLs');
+            console.log('      • La estructura del DOM cambió\n');
+            
+            sendResponse({ 
+                error: 'Timeout: CSV no fue capturado en 60 segundos',
+                hint: 'Intenta descargar el CSV manualmente para verificar'
+            });
+        }, 60000);
+        
+        // PASO 1: Abrir modal
+        console.log('⏳ Abriendo modal de exportación...');
         abrirModalExportar();
+        console.log('✅ Modal abierto\n');
         
-        // Paso 2: Hacer click en CSV
+        // PASO 2: Click en CSV (descarga)
+        console.log('⏳ Haciendo click en CSV...');
         descargarCSV();
+        console.log('✅ Click realizado');
+        console.log('⏳ Esperando que se capture el blob URL...\n');
         
-        // Paso 3: Esperar CSV
-        let waited = 0;
-        let responded = false;
-        let intentos = 0;
-        
-        // Intentar leer CSV cada 1 segundo (muy agresivo)
-        const check = setInterval(async () => {
-            if (responded) return;
+        async function procesarYEnviar(data) {
+            window.removeEventListener('WHATICKET_CSV_CAPTURED', csvListener);
+            clearTimeout(timeoutId);
             
-            waited += 1000;
-            intentos++;
-            
-            console.log(`\n⏳ Intento #${intentos} (${waited/1000}s)`);
-            
-            // OPCIÓN 1: Leer del storage (rellenado por background.js)
-            console.log('   1️⃣ Verificando storage...');
-            chrome.runtime.sendMessage(
-                { type: 'GET_CSV_FROM_STORAGE' },
-                async (response) => {
-                    if (response) {
-                        console.log('      ✅ Respuesta recibida:', {
-                            hasCsv: !!response.csv,
-                            size: response.csv?.length,
-                            ready: response.ready,
-                            source: response.source
-                        });
-                        
-                        if (response.csv && response.csv.length > 100) {
-                            console.log('      ✅✅✅ CSV ENCONTRADO EN STORAGE');
-                            procesarYEnviarCSV(response.csv, response.source);
-                            return;
-                        }
-                    } else {
-                        console.log('      ❌ Sin respuesta del background');
-                    }
-                    
-                    // OPCIÓN 2: Verificar interceptores
-                    console.log('   2️⃣ Verificando interceptores...');
-                    if (window.__whaticketCSV && window.__whaticketCSV.length > 100) {
-                        console.log('      ✅✅✅ CSV ENCONTRADO EN INTERCEPTOR');
-                        procesarYEnviarCSV(window.__whaticketCSV, window.__csvSource);
-                        return;
-                    }
-                    
-                    console.log('   ⏳ Aún no disponible, esperando...');
-                }
-            );
-            
-            // Timeout: 30 segundos
-            if (waited > 30000 && !responded) {
-                clearInterval(check);
-                responded = true;
-                
-                console.error('\n❌ TIMEOUT (30 segundos)');
-                console.log('   Intentos realizados:', intentos);
-                console.log('   Último estado del storage:', window.__whaticketCSV ? 'TIENE CSV' : 'NO TIENE CSV');
-                
-                sendResponse({ error: 'Timeout esperando CSV' });
-            }
-        }, 1000);
-        
-        async function procesarYEnviarCSV(csvText, source) {
-            if (responded) return;
-            clearInterval(check);
-            responded = true;
-            
-            console.log('\n✅ CSV CAPTURADO EXITOSAMENTE');
-            console.log('   Tamaño:', csvText.length, 'bytes');
-            console.log('   Fuente:', source);
-            console.log('   Primeros 200 chars:', csvText.substring(0, 200));
-            
-            // ========================================
-            // PASO 4: PROCESAR CSV
-            // ========================================
             console.log('\n⚙️ PROCESANDO CSV...');
             
             try {
-                const jsonData = csvToJson(csvText);
-                console.log('   ✅ JSON parseado:', jsonData.length, 'filas');
+                // Paso 1: Convertir CSV string a JSON array (parser robusto)
+                console.log('📥 Recibido:', data.csv.substring(0, 100) + '...');
+                const jsonData = csvToJson(data.csv);
                 
-                if (jsonData.length === 0) {
-                    throw new Error('No se encontraron datos válidos en el CSV');
+                if (!jsonData || jsonData.length === 0) {
+                    throw new Error('CSV vacío o sin datos válidos');
                 }
                 
-                const processedResult = processCSV(jsonData);
-                console.log('   ✅ Resultado procesamiento:', processedResult);
+                console.log('   ✅ CSV convertido a JSON:', jsonData.length, 'registros');
+                
+                // Paso 2: Procesar datos de HOY
+                console.log('🔄 Procesando datos...');
+                const processedResult = procesarDatosHoy(jsonData);
                 
                 if (!processedResult.success) {
-                    throw new Error(processedResult.error);
+                    throw new Error(processedResult.error || 'Error procesando CSV');
                 }
                 
-                console.log('✅ CSV PROCESADO EXITOSAMENTE');
-                console.log('   Paneles:', processedResult.data.length);
-                console.log('   Conversaciones:', processedResult.statistics.total_conversaciones);
+                console.log('   ✅ CSV procesado:', processedResult.data.length, 'paneles');
+                console.log('   ✅ Total conversaciones:', processedResult.statistics.total_conversaciones);
+                console.log('   ✅ Total cargas:', processedResult.statistics.total_cargas);
                 
-                // ========================================
-                // PASO 5: ENVIAR A SERVIDOR
-                // ========================================
-                console.log('\n📤 ENVIANDO A SERVIDOR');
-                
-                const panelsConId = processedResult.data.map((panel, idx) => ({
-                    ...panel,
-                    id: `panel_${idx + 1}`
-                }));
-                
-                const envioResult = await enviarAlServidor(panelsConId);
-                
-                if (envioResult.success) {
-                    console.log('\n🎉 ===== CICLO COMPLETO EXITOSO =====\n');
-                    
-                    // Limpiar storage
-                    chrome.runtime.sendMessage({ type: 'CLEAR_CSV_STORAGE' });
-                    
-                    sendResponse({ 
-                        success: true,
-                        csvData: csvText,
-                        processedData: processedResult,
-                        serverResponse: envioResult.result
-                    });
-                } else {
-                    console.error('\n❌ Error en envío:', envioResult.error);
-                    sendResponse({ 
-                        success: false,
-                        error: 'Error enviando a servidor: ' + envioResult.error
-                    });
+                // Verificar si hay datos de HOY
+                if (!processedResult.hasDataToday) {
+                    console.warn('\n⚠️ ADVERTENCIA: No hay datos de HOY');
+                    console.log('   Fecha buscada:', processedResult.today);
+                    console.log('   Fechas disponibles en CSV:', processedResult.allDatesFound.join(', '));
                 }
                 
-            } catch (processingError) {
-                console.error('\n❌ Error procesando:', processingError.message);
-                console.error('   Stack:', processingError.stack);
+                // Abrir ventana de resultados via background.js
+                console.log('\n📊 Enviando datos al popup...');
+                
+                // Enviar resultado al popup
+                sendResponse({ 
+                    success: true,
+                    csvData: data.csv,
+                    processedData: processedResult
+                });
+                
+                console.log('✅ Datos enviados al popup correctamente');
+                
+            } catch (err) {
+                console.error('\n❌ Error procesando:', err.message);
                 sendResponse({ 
                     success: false,
-                    csvData: csvText,
-                    error: 'Error: ' + processingError.message
+                    error: err.message
                 });
             }
         }
         
-        console.log('⏳ Esperando captura de CSV...');
-        console.log('   • Intentará cada 1 segundo');
-        console.log('   • Máximo 30 segundos');
-        console.log('   • Verificará: Storage + Interceptores\n');
-        
     } catch (error) {
         console.error('❌ Error fatal:', error);
-        console.error('   Stack:', error.stack);
         sendResponse({ error: error.message });
     }
 }
